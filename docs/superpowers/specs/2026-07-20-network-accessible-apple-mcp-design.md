@@ -31,7 +31,9 @@ Two consumption paths are required:
 | Decision | Choice |
 |----------|--------|
 | Client transport | Native MCP over HTTP (Streamable HTTP, SDK `^1.5.0`) |
-| Security | LAN bind + static bearer token, fail-closed if token unset |
+| Security | LAN bind + bearer token; **two scopes** (full / read-only); fail-closed if no token set |
+| Authorization | Per-client token scopes. Hermes uses the read-only token |
+| Read-only scope blocks | `mail:send`, `messages:send`, `messages:schedule` (only). Notes/reminders/calendar creation still allowed |
 | Process management | macOS **LaunchAgent** (user GUI session), auto-start + KeepAlive |
 | REST shape | Read-only: bulk reads/exports + structured queries/filters |
 | REST domains | contacts, notes, mail, calendar, reminders |
@@ -87,21 +89,46 @@ AppleScript unless a filter genuinely needs it.
 | `MCP_TRANSPORT` | `stdio` | `stdio` or `http` |
 | `HOST` | `0.0.0.0` (http mode) | Bind address |
 | `PORT` | `3737` | Listen port |
-| `MCP_AUTH_TOKEN` | *(none)* | **Required** in http mode; server refuses to start without it |
+| `MCP_AUTH_TOKEN` | *(none)* | **Full-access** bearer token (all operations) |
+| `MCP_READONLY_TOKEN` | *(none)* | **Read-only** bearer token. This is the one Hermes uses |
+
+In http mode **at least one** token must be set or the server refuses to start
+(fail closed). Setting only `MCP_READONLY_TOKEN` is valid — it yields a network
+surface where no client can send mail/messages. Tokens must be distinct.
 
 Porting to the future Apple server = copy repo, set the same env, run. A `.env.example`
 and README section document all variables.
 
 ## Security
 
-- `http/auth.ts` requires `Authorization: Bearer <MCP_AUTH_TOKEN>` on every request
-  except `GET /healthz`.
-- Constant-time token comparison.
-- **Fail closed:** in http mode, if `MCP_AUTH_TOKEN` is unset/empty the server logs an
-  error and exits rather than serving unauthenticated. Anything that reaches this server
-  can act as the user (send mail, read contacts), so an unauthenticated network listener
-  is never started.
+- `http/auth.ts` requires `Authorization: Bearer <token>` on every request except
+  `GET /healthz`. It resolves the presented token to a **scope**:
+  `MCP_AUTH_TOKEN` → `full`, `MCP_READONLY_TOKEN` → `read`. Unknown token → `401`.
+- Constant-time token comparison against each configured token.
+- **Fail closed:** in http mode, if neither token is set the server logs an error and
+  exits rather than serving unauthenticated. Anything that reaches this server can act
+  as the user (send mail, read contacts), so an unauthenticated listener is never started.
 - Binds to the LAN; TLS intentionally deferred to an optional external reverse proxy.
+
+## Authorization scopes (write-blocking)
+
+Writes here are *operations inside* tools, not standalone tools, so blocking happens at
+the operation level — never by hiding a tool (which would also remove its read ops).
+
+- The auth layer attaches the resolved scope (`full` | `read`) to the request/session.
+- When an MCP session is established, its scope is captured and the MCP call handler
+  enforces it. The **read** scope rejects exactly: `mail:send`, `messages:send`,
+  `messages:schedule`. A blocked call returns an MCP tool error
+  (`"operation X is not permitted for this token (read-only)"`), not a crash.
+- All other operations — including `notes:create`, `reminders:create`,
+  `calendar:create`, and every read — are allowed under both scopes.
+- `createMcpServer({ allowMessaging })` centralizes the guard so the same list is
+  enforced regardless of transport; `allowMessaging` is `false` for the read scope.
+- The full REST API is read-only for all callers regardless of scope, so no REST-side
+  scope logic is needed.
+
+Hermes is configured with `MCP_READONLY_TOKEN`: it can read mail and messages (and
+create notes/reminders/events) but cannot send mail or send/schedule messages.
 
 ## REST API (read-only, `/api/v1`)
 
@@ -130,9 +157,13 @@ where a util returns a full set, the REST layer applies `q`/pagination in-proces
 ## MCP endpoint (`/mcp`)
 
 - SDK `StreamableHTTPServerTransport`, session-managed (per-session transport keyed by
-  the `mcp-session-id` header), backed by `createMcpServer()`.
+  the `mcp-session-id` header). Each session is built via
+  `createMcpServer({ allowMessaging })` where `allowMessaging` comes from the token
+  scope that opened the session.
 - Handles `POST` (JSON-RPC), `GET` (server-initiated stream), `DELETE` (session close).
-- Full tool set, including writes. This is the only network path that can write.
+- Full tool set is exposed to all clients; the read scope rejects the three
+  send/schedule operations at call time (see Authorization scopes). This is the only
+  network path that can write at all.
 
 ## Process management — LaunchAgent
 
@@ -159,7 +190,11 @@ this is documented in the README with the exact apps to expect.
 
 Extend the existing `tests/` harness (adds `tests/http/`):
 
-- Auth: `401` with no token / wrong token; `200` with correct token; `/healthz` needs no auth.
+- Auth: `401` with no token / wrong token; `200` with either valid token; `/healthz` needs no auth.
+- Scope: read-only token → `mail:send` / `messages:send` / `messages:schedule` return a
+  tool error; the same operations succeed (mocked) under the full token; reads and
+  `notes:create` succeed under both.
+- Fail-closed: http mode with no token configured exits at startup.
 - One REST read per domain with `utils/*` mocked (envelope shape, pagination, filters).
 - MCP-over-HTTP initialize handshake succeeds and `tools/list` returns the 7 tools.
 - Validation: bad `from`/`to` → `400`.
@@ -169,7 +204,9 @@ Existing stdio and integration tests remain untouched and passing.
 ## Rollout
 
 1. Refactor `createMcpServer()` factory; verify stdio mode still works (regression).
-2. Add `http/` server, auth, MCP route; verify Hermes connects over HTTP with token.
+2. Add `http/` server, scoped auth (full/read tokens), and MCP route with the
+   `allowMessaging` guard; verify Hermes connects with the read token and that
+   `mail:send` / `messages:send` are rejected while reads work.
 3. Add REST read endpoints per domain.
 4. Add LaunchAgent plist + README/`.env.example` docs.
 5. Install LaunchAgent, grant Automation permissions, verify persistence across reboot.
