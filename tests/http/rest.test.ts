@@ -104,6 +104,66 @@ describe("reminders route", () => {
 	});
 });
 
+describe("reminders write route", () => {
+	function appWithScope(scope: "full" | "read") {
+		const a = new Hono<{ Variables: { scope: string } }>();
+		a.use("*", async (c, next) => {
+			c.set("scope", scope);
+			await next();
+		});
+		return a;
+	}
+
+	it("creates a reminder with the full token (201)", async () => {
+		mock.module("../../utils/reminders.js", () => ({
+			default: {
+				getAllReminders: async () => [],
+				getRemindersFromListById: async () => [],
+				searchReminders: async () => [],
+				createReminder: async (name: string) => ({
+					name,
+					id: "new-id",
+					body: "",
+					completed: false,
+					dueDate: null,
+					listName: "Reminders",
+				}),
+			},
+		}));
+		const { remindersRoutes } = await import("../../http/rest/reminders.js");
+		const app = appWithScope("full").route("/r", remindersRoutes());
+		const res = await app.request("/r", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ name: "Buy milk" }),
+		});
+		expect(res.status).toBe(201);
+		expect((await res.json()).data.name).toBe("Buy milk");
+	});
+
+	it("rejects the read token with 403", async () => {
+		const { remindersRoutes } = await import("../../http/rest/reminders.js");
+		const app = appWithScope("read").route("/r", remindersRoutes());
+		const res = await app.request("/r", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ name: "Buy milk" }),
+		});
+		expect(res.status).toBe(403);
+	});
+
+	it("400s when name is missing", async () => {
+		const { remindersRoutes } = await import("../../http/rest/reminders.js");
+		const app = appWithScope("full").route("/r", remindersRoutes());
+		const res = await app.request("/r", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ listName: "Home" }),
+		});
+		expect(res.status).toBe(400);
+	});
+});
+
 describe("calendar route", () => {
 	it("lists events", async () => {
 		mock.module("../../utils/calendar.js", () => ({

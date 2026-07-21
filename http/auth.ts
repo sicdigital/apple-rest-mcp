@@ -39,3 +39,17 @@ export function bearerAuth(opts: AuthOptions): MiddlewareHandler {
 export function getScope(c: Context): Scope {
 	return c.get("scope") as Scope;
 }
+
+/**
+ * Middleware that rejects any request whose token scope is not "full".
+ * Use to gate write endpoints — the read-only token gets a 403.
+ * Assumes bearerAuth ran first (so a scope is set; otherwise 401 already happened).
+ */
+export function requireFullScope(): MiddlewareHandler {
+	return async (c, next) => {
+		if (getScope(c) !== "full") {
+			return c.json({ error: "forbidden: full-access token required" }, 403);
+		}
+		await next();
+	};
+}

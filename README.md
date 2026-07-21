@@ -17,8 +17,9 @@ Everything the original does (stdio MCP for Claude Desktop) still works. On top 
 - **🌐 MCP over HTTP (Streamable HTTP).** Run it as a LAN service and point any
   MCP-over-HTTP client (Hermes, local LLM, etc.) at `http://<mac>:3737/mcp` — not just a
   local stdio subprocess.
-- **🔌 Read-only REST API** (`/api/v1/...`) for bulk reads and structured queries as clean
-  JSON — ideal for ingesting/indexing contacts, notes, mail, calendar, and reminders.
+- **🔌 REST API** (`/api/v1/...`) for bulk reads and structured queries as clean JSON —
+  ideal for ingesting/indexing contacts, notes, mail, calendar, and reminders. Plus
+  create endpoints for reminders/notes/calendar events (full token only).
 - **🔑 Token scopes.** Two bearer tokens: a **full** token (can send mail/messages) and a
   **read-only** token that can read everything but cannot `mail:send` /
   `messages:send` / `messages:schedule`. Hand agents the read-only one.
@@ -151,8 +152,12 @@ Every request needs `Authorization: Bearer <token>`. The token decides the scope
 - `GET /api/v1/calendar/events?q=&from=&to=&limit=&offset=`
 - `GET /api/v1/reminders?list=&listId=&q=&limit=&offset=` — plus Stripe-style date filters
   `created[gte|gt|lte|lt]=<iso>` and `due[gte|gt|lte|lt]=<iso>`
+- `POST /api/v1/reminders` — create a reminder **(full token only)**
+- `POST /api/v1/notes` — create a note **(full token only)**
+- `POST /api/v1/calendar/events` — create an event **(full token only)**
 
-The REST API is **read-only** for all callers; all writes go through MCP.
+REST **reads** work with either token. REST **writes** (the three `POST`s above) require
+the **full** token — the read-only token gets `403`. Sending mail/messages stays MCP-only.
 
 ### Keep it running (macOS LaunchAgent)
 

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import notes from "../../utils/notes.js";
+import { requireFullScope } from "../auth.js";
 import { readPageParams, paginate, envelope } from "./pagination.js";
 
 interface NoteRow {
@@ -38,5 +39,31 @@ export function notesRoutes(): Hono {
 		}
 		return c.json(envelope(paginate(rows, limit, offset), limit, offset));
 	});
+
+	// Create a note (full token only).
+	r.post("/", requireFullScope(), async (c) => {
+		let body: { title?: unknown; body?: unknown; folderName?: unknown };
+		try {
+			body = await c.req.json();
+		} catch {
+			return c.json({ error: "invalid JSON body" }, 400);
+		}
+		if (typeof body.title !== "string" || body.title.trim() === "") {
+			return c.json({ error: "title is required" }, 400);
+		}
+		if (typeof body.body !== "string" || body.body === "") {
+			return c.json({ error: "body is required" }, 400);
+		}
+		const result = await notes.createNote(
+			body.title,
+			body.body,
+			typeof body.folderName === "string" ? body.folderName : undefined,
+		);
+		if (!result.success) {
+			return c.json({ error: result.message ?? "failed to create note" }, 500);
+		}
+		return c.json({ data: result }, 201);
+	});
+
 	return r;
 }

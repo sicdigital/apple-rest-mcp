@@ -185,7 +185,9 @@ is mainly useful for debugging connectivity/auth.)
 
 ## 7. REST API reference
 
-Read-only. Base path `/api/v1`. Every response uses the same envelope:
+Base path `/api/v1`. **Reads** (`GET`) work with either token. **Writes** (`POST` for
+reminders/notes/calendar) require the **full** token — the read-only token gets `403`.
+Read responses use the same envelope:
 
 ```json
 { "data": [ /* items */ ],
@@ -286,7 +288,31 @@ curl -s -H "Authorization: Bearer $T" \
 
 > ⚠️ Reminders queries are slow (~25–35s) — an AppleScript limitation, not the server.
 
-> Tip: `export T=read-abc` once, then reuse `$T` in the examples above.
+### Writes (create) — full token only
+
+`POST` with the **full** token (`$F`); the read-only token returns `403`. Success returns
+`201 { "data": … }`; missing required fields return `400`.
+
+```bash
+# create a reminder (listName defaults to "Reminders")
+curl -s -X POST -H "Authorization: Bearer $F" -H "Content-Type: application/json" \
+  -d '{"name":"Call dentist","listName":"Inbox","dueDate":"2026-08-01T14:00:00"}' \
+  http://127.0.0.1:3737/api/v1/reminders
+
+# create a note (folderName defaults to "Claude")
+curl -s -X POST -H "Authorization: Bearer $F" -H "Content-Type: application/json" \
+  -d '{"title":"Ideas","body":"ship it","folderName":"Work"}' \
+  http://127.0.0.1:3737/api/v1/notes
+
+# create a calendar event
+curl -s -X POST -H "Authorization: Bearer $F" -H "Content-Type: application/json" \
+  -d '{"title":"Coffee","startDate":"2026-08-02T10:00:00","endDate":"2026-08-02T10:30:00"}' \
+  http://127.0.0.1:3737/api/v1/calendar/events
+```
+
+Sending mail/messages is **not** exposed over REST — use MCP (full token) for those.
+
+> Tip: `export T=read-abc` (read) and `export F=full-abc` (full), then reuse in examples above.
 
 ---
 

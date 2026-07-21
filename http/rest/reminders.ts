@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import reminders from "../../utils/reminders.js";
+import { requireFullScope } from "../auth.js";
 import { readPageParams, paginate, envelope } from "./pagination.js";
 
 type Op = "gte" | "gt" | "lte" | "lt";
@@ -89,5 +90,31 @@ export function remindersRoutes(): Hono {
 
 		return c.json(envelope(paginate(filtered, limit, offset), limit, offset));
 	});
+
+	// Create a reminder (full token only).
+	r.post("/", requireFullScope(), async (c) => {
+		let body: {
+			name?: unknown;
+			listName?: unknown;
+			notes?: unknown;
+			dueDate?: unknown;
+		};
+		try {
+			body = await c.req.json();
+		} catch {
+			return c.json({ error: "invalid JSON body" }, 400);
+		}
+		if (typeof body.name !== "string" || body.name.trim() === "") {
+			return c.json({ error: "name is required" }, 400);
+		}
+		const created = await reminders.createReminder(
+			body.name,
+			typeof body.listName === "string" ? body.listName : undefined,
+			typeof body.notes === "string" ? body.notes : undefined,
+			typeof body.dueDate === "string" ? body.dueDate : undefined,
+		);
+		return c.json({ data: created }, 201);
+	});
+
 	return r;
 }

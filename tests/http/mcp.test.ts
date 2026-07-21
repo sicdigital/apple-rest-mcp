@@ -28,4 +28,15 @@ describe("app wiring", () => {
 		const body = await res.text();
 		expect(body).toContain("openapi: 3.1.0");
 	});
+
+	it("write endpoint: 401 without token, 403 with read token", async () => {
+		const post = (headers: Record<string, string>) =>
+			buildApp(cfg).request("/api/v1/reminders", {
+				method: "POST",
+				headers: { "Content-Type": "application/json", ...headers },
+				body: JSON.stringify({ name: "x" }),
+			});
+		expect((await post({})).status).toBe(401);
+		expect((await post({ Authorization: "Bearer r" })).status).toBe(403);
+	});
 });

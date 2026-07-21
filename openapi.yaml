@@ -127,6 +127,30 @@ paths:
                         type: array
                         items: { $ref: "#/components/schemas/Note" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [notes]
+      summary: Create a note
+      operationId: createNote
+      description: Requires the full-access token (MCP_AUTH_TOKEN).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NoteCreate" }
+      responses:
+        "201":
+          description: Created note
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/NoteCreateResult" }
+                required: [data]
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
 
   /api/v1/mail:
     get:
@@ -238,6 +262,30 @@ paths:
                         type: array
                         items: { $ref: "#/components/schemas/CalendarEvent" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [calendar]
+      summary: Create a calendar event
+      operationId: createCalendarEvent
+      description: Requires the full-access token (MCP_AUTH_TOKEN).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventCreate" }
+      responses:
+        "201":
+          description: Created event
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/EventCreateResult" }
+                required: [data]
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "500": { $ref: "#/components/responses/ServerError" }
 
   /api/v1/reminders:
     get:
@@ -296,6 +344,29 @@ paths:
                         items: { $ref: "#/components/schemas/Reminder" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [reminders]
+      summary: Create a reminder
+      operationId: createReminder
+      description: Requires the full-access token (MCP_AUTH_TOKEN).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReminderCreate" }
+      responses:
+        "201":
+          description: Created reminder
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Reminder" }
+                required: [data]
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 
   /mcp:
     post:
@@ -357,6 +428,16 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
+    Forbidden:
+      description: Authenticated but the token lacks write scope (read-only token)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    ServerError:
+      description: The underlying Apple app operation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
 
   schemas:
     Pagination:
@@ -389,6 +470,52 @@ components:
         lte: { type: string, format: date-time }
         lt: { type: string, format: date-time }
       additionalProperties: false
+
+    ReminderCreate:
+      type: object
+      properties:
+        name: { type: string, description: Reminder title }
+        listName: { type: string, description: "Target list (defaults to \"Reminders\")." }
+        notes: { type: string }
+        dueDate: { type: string, format: date-time, description: ISO 8601 due date }
+      required: [name]
+
+    NoteCreate:
+      type: object
+      properties:
+        title: { type: string }
+        body: { type: string }
+        folderName: { type: string, description: "Target folder (defaults to \"Claude\")." }
+      required: [title, body]
+
+    NoteCreateResult:
+      type: object
+      properties:
+        success: { type: boolean }
+        folderName: { type: string }
+        usedDefaultFolder: { type: boolean }
+        message: { type: string }
+      required: [success]
+
+    EventCreate:
+      type: object
+      properties:
+        title: { type: string }
+        startDate: { type: string, format: date-time }
+        endDate: { type: string, format: date-time }
+        location: { type: string }
+        notes: { type: string }
+        isAllDay: { type: boolean }
+        calendarName: { type: string }
+      required: [title, startDate, endDate]
+
+    EventCreateResult:
+      type: object
+      properties:
+        success: { type: boolean }
+        message: { type: string }
+        eventId: { type: string }
+      required: [success, message]
 
     Contact:
       type: object
