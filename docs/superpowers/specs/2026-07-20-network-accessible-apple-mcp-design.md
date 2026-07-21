@@ -30,7 +30,7 @@ Two consumption paths are required:
 
 | Decision | Choice |
 |----------|--------|
-| Client transport | Native MCP over HTTP (Streamable HTTP, SDK `^1.5.0`) |
+| Client transport | Native MCP over HTTP (Streamable HTTP). **Requires SDK upgrade** `1.5.0` → latest `1.x` (`1.29.0`); 1.5.0 has no `StreamableHTTPServerTransport` |
 | Security | LAN bind + bearer token; **two scopes** (full / read-only); fail-closed if no token set |
 | Authorization | Per-client token scopes. Hermes uses the read-only token |
 | Read-only scope blocks | `mail:send`, `messages:send`, `messages:schedule` (only). Notes/reminders/calendar creation still allowed |
