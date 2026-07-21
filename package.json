@@ -24,8 +24,11 @@
 	},
 	"scripts": {
 		"dev": "bun run index.ts",
+		"http": "MCP_TRANSPORT=http bun run index.ts",
 		"build": "bun build index.ts --outfile=dist/index.js --target=node --minify",
 		"start": "node dist/index.js",
+		"start:http": "MCP_TRANSPORT=http node dist/index.js",
+		"test:http": "bun test tests/http/*.test.ts",
 		"prepublishOnly": "bun run build",
 		"test": "bun run test-runner.ts all",
 		"test:watch": "bun test tests/**/*.test.ts --preload ./tests/setup.ts --watch",
