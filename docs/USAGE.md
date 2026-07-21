@@ -195,6 +195,10 @@ Read-only. Base path `/api/v1`. Every response uses the same envelope:
 Shared query params: `limit` (1–1000, default 100) and `offset` (default 0). All
 requests need `Authorization: Bearer <token>`. Dates are ISO 8601.
 
+The full machine-readable contract is an **OpenAPI 3.1** spec, committed at
+[`openapi.yaml`](../openapi.yaml) and served (no auth) at `GET /openapi.yaml` — point
+Swagger UI, Redoc, Postman, or a codegen/agent at it.
+
 ### Contacts
 
 ```bash

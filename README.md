@@ -144,6 +144,7 @@ Every request needs `Authorization: Bearer <token>`. The token decides the scope
 - `POST /mcp` — MCP Streamable HTTP. Point your agent here:
   `http://<host>:3737/mcp` with `Authorization: Bearer <MCP_READONLY_TOKEN>`.
 - `GET /healthz` — liveness, no auth.
+- `GET /openapi.yaml` — OpenAPI 3.1 spec for the REST API, no auth ([`openapi.yaml`](openapi.yaml)).
 - `GET /api/v1/contacts?name=&limit=&offset=`
 - `GET /api/v1/notes?folder=&from=&to=&q=&limit=&offset=`
 - `GET /api/v1/mail?account=&unread=&q=&limit=&offset=`, `/api/v1/mail/accounts`, `/api/v1/mail/mailboxes?account=`

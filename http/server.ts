@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { readHttpConfig, type HttpConfig } from "./env.js";
@@ -8,6 +11,23 @@ import { notesRoutes } from "./rest/notes.js";
 import { mailRoutes } from "./rest/mail.js";
 import { calendarRoutes } from "./rest/calendar.js";
 import { remindersRoutes } from "./rest/reminders.js";
+
+/** Load openapi.yaml from the repo, resolving both source and bundled layouts. */
+function loadOpenApiSpec(): string | null {
+	const here = dirname(fileURLToPath(import.meta.url)); // http/ (or dist/)
+	const candidates = [
+		join(here, "..", "openapi.yaml"),
+		join(process.cwd(), "openapi.yaml"),
+	];
+	for (const path of candidates) {
+		try {
+			return readFileSync(path, "utf8");
+		} catch {
+			// try next candidate
+		}
+	}
+	return null;
+}
 
 export function buildApp(cfg: HttpConfig = readHttpConfig(process.env)): Hono {
 	const app = new Hono();
@@ -31,6 +51,14 @@ export function buildApp(cfg: HttpConfig = readHttpConfig(process.env)): Hono {
 
 	// Liveness — registered before auth so it stays unauthenticated.
 	app.get("/healthz", (c) => c.json({ ok: true }));
+
+	// OpenAPI spec — public, so tools/agents can discover the REST API.
+	const spec = loadOpenApiSpec();
+	if (spec) {
+		app.get("/openapi.yaml", (c) =>
+			c.body(spec, 200, { "Content-Type": "application/yaml" }),
+		);
+	}
 
 	// Everything below requires a valid token.
 	app.use("*", bearerAuth({ fullToken: cfg.fullToken, readonlyToken: cfg.readonlyToken }));

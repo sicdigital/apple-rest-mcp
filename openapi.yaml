@@ -1,0 +1,446 @@
+openapi: 3.1.0
+info:
+  title: apple-rest-mcp REST API
+  version: 2.0.0
+  description: >
+    Read-only REST API over your Mac's native apps (Contacts, Notes, Mail, Calendar,
+    Reminders), served alongside the MCP endpoint. All data is read-only; writes
+    (sending mail/messages, creating items) go through the MCP endpoint (`POST /mcp`),
+    not REST.
+
+    Dates returned by the Reminders and Calendar apps are AppleScript-localized
+    strings (e.g. "Thursday, July 30, 2026 at 12:00:00 AM"), not strict ISO 8601.
+    Filter *inputs*, however, are ISO 8601 / RFC 3339.
+  license:
+    name: MIT
+    identifier: MIT
+
+servers:
+  - url: http://{host}:{port}
+    description: LAN server (default LaunchAgent binding)
+    variables:
+      host:
+        default: localhost
+        description: Host or LAN IP of the Mac running the server
+      port:
+        default: "3737"
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: system
+    description: Health and liveness.
+  - name: contacts
+    description: Apple Contacts.
+  - name: notes
+    description: Apple Notes.
+  - name: mail
+    description: Apple Mail.
+  - name: calendar
+    description: Apple Calendar.
+  - name: reminders
+    description: Apple Reminders.
+  - name: mcp
+    description: Model Context Protocol endpoint (JSON-RPC over Streamable HTTP).
+
+paths:
+  /healthz:
+    get:
+      tags: [system]
+      summary: Liveness probe (no auth)
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Server is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                required: [ok]
+
+  /api/v1/contacts:
+    get:
+      tags: [contacts]
+      summary: List or look up contacts
+      operationId: getContacts
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: name
+          in: query
+          description: Partial name to search for. Omit to list all contacts.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Enveloped list of contacts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Contact" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/notes:
+    get:
+      tags: [notes]
+      summary: List, filter, or search notes
+      operationId: getNotes
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: folder
+          in: query
+          description: Restrict to a Notes folder. Required when using from/to.
+          schema: { type: string }
+        - name: from
+          in: query
+          description: Start of creation-date range (ISO 8601). Requires folder.
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          description: End of creation-date range (ISO 8601). Requires folder.
+          schema: { type: string, format: date-time }
+        - name: q
+          in: query
+          description: Case-insensitive substring match on title/content.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Enveloped list of notes
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Note" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/mail:
+    get:
+      tags: [mail]
+      summary: Latest, unread, or searched mail
+      operationId: getMail
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: account
+          in: query
+          description: Restrict to a Mail account (defaults to first configured account).
+          schema: { type: string }
+        - name: unread
+          in: query
+          description: When "true", return unread mail instead of latest.
+          schema: { type: boolean }
+        - name: q
+          in: query
+          description: Search term (searches mail).
+          schema: { type: string }
+      responses:
+        "200":
+          description: Enveloped list of mail messages
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/MailMessage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/mail/accounts:
+    get:
+      tags: [mail]
+      summary: List configured Mail accounts
+      operationId: getMailAccounts
+      responses:
+        "200":
+          description: Enveloped list of account names
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: array, items: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/mail/mailboxes:
+    get:
+      tags: [mail]
+      summary: List mailboxes (optionally for one account)
+      operationId: getMailboxes
+      parameters:
+        - name: account
+          in: query
+          description: Restrict to one account. Omit for all mailboxes.
+          schema: { type: string }
+      responses:
+        "200":
+          description: Enveloped list of mailbox names
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data: { type: array, items: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/calendar/events:
+    get:
+      tags: [calendar]
+      summary: List or search calendar events
+      operationId: getCalendarEvents
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: q
+          in: query
+          description: Search event titles, locations, and notes.
+          schema: { type: string }
+        - name: from
+          in: query
+          description: Start of date range (ISO 8601).
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          description: End of date range (ISO 8601).
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Enveloped list of events
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/CalendarEvent" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/v1/reminders:
+    get:
+      tags: [reminders]
+      summary: List, search, and filter reminders by due/created date
+      operationId: getReminders
+      description: >
+        Returns incomplete reminders by default. `q` searches names (and includes
+        completed reminders). Date filters use Stripe-style bracket operators; `due`
+        and `created` filter independently and combine (AND). A reminder with no date
+        on a filtered field is excluded — most reminders have no dueDate, so prefer
+        `created[...]` to capture everything in a window.
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: list
+          in: query
+          description: Restrict to a reminders list by name.
+          schema: { type: string }
+        - name: listId
+          in: query
+          description: Restrict to a reminders list by id.
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Search term matching the reminder name (includes completed).
+          schema: { type: string }
+        - name: created
+          in: query
+          description: >
+            Creation-date range, Stripe-style. Serializes as
+            `created[gte]=...&created[lte]=...`. Values are ISO 8601.
+          style: deepObject
+          explode: true
+          schema: { $ref: "#/components/schemas/DateRangeFilter" }
+        - name: due
+          in: query
+          description: >
+            Due-date range, Stripe-style. Serializes as
+            `due[gte]=...&due[lt]=...`. Values are ISO 8601.
+          style: deepObject
+          explode: true
+          schema: { $ref: "#/components/schemas/DateRangeFilter" }
+      responses:
+        "200":
+          description: Enveloped list of reminders
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Envelope"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: "#/components/schemas/Reminder" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /mcp:
+    post:
+      tags: [mcp]
+      summary: MCP endpoint (Streamable HTTP, JSON-RPC 2.0)
+      operationId: postMcp
+      description: >
+        Model Context Protocol over Streamable HTTP. This is NOT a REST resource — it
+        speaks JSON-RPC 2.0 (initialize, tools/list, tools/call, ...). Use an MCP
+        client rather than calling it directly. Requires a bearer token; a read-only
+        token cannot call mail:send / messages:send / messages:schedule.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: A JSON-RPC 2.0 request object.
+      responses:
+        "200":
+          description: JSON-RPC response (or an SSE stream, per Streamable HTTP).
+          content:
+            application/json:
+              schema: { type: object }
+            text/event-stream:
+              schema: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >
+        Static bearer token. MCP_AUTH_TOKEN grants full access; MCP_READONLY_TOKEN
+        grants read-only (cannot send mail/messages). All routes except /healthz
+        require it.
+
+  parameters:
+    limit:
+      name: limit
+      in: query
+      description: Max items to return (1–1000).
+      schema: { type: integer, minimum: 1, maximum: 1000, default: 100 }
+    offset:
+      name: offset
+      in: query
+      description: Items to skip.
+      schema: { type: integer, minimum: 0, default: 0 }
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: Invalid parameter (e.g. an unparseable date value)
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    Pagination:
+      type: object
+      properties:
+        limit: { type: integer }
+        offset: { type: integer }
+        count: { type: integer, description: Number of items in this page's data array }
+      required: [limit, offset, count]
+
+    Envelope:
+      type: object
+      properties:
+        data: { type: array, items: {} }
+        pagination: { $ref: "#/components/schemas/Pagination" }
+      required: [data, pagination]
+
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+
+    DateRangeFilter:
+      type: object
+      description: Stripe-style comparison operators. Values are ISO 8601 date-times.
+      properties:
+        gte: { type: string, format: date-time }
+        gt: { type: string, format: date-time }
+        lte: { type: string, format: date-time }
+        lt: { type: string, format: date-time }
+      additionalProperties: false
+
+    Contact:
+      type: object
+      properties:
+        name: { type: string }
+        phones: { type: array, items: { type: string } }
+      required: [name, phones]
+
+    Note:
+      type: object
+      properties:
+        name: { type: string, description: Note title }
+        content: { type: string }
+      required: [name, content]
+
+    MailMessage:
+      type: object
+      properties:
+        subject: { type: string }
+        sender: { type: string }
+        dateSent: { type: string }
+        content: { type: string }
+        isRead: { type: boolean }
+        mailbox: { type: string }
+      required: [subject, sender, dateSent, content, isRead, mailbox]
+
+    CalendarEvent:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        location: { type: [string, "null"] }
+        notes: { type: [string, "null"] }
+        startDate: { type: [string, "null"] }
+        endDate: { type: [string, "null"] }
+        calendarName: { type: string }
+        isAllDay: { type: boolean }
+        url: { type: [string, "null"] }
+      required: [id, title, calendarName, isAllDay]
+
+    Reminder:
+      type: object
+      properties:
+        name: { type: string }
+        id: { type: string }
+        body: { type: string, description: "Currently always empty (not fetched, for speed)." }
+        completed: { type: boolean }
+        dueDate:
+          type: [string, "null"]
+          description: AppleScript-localized date string, or null.
+        creationDate:
+          type: [string, "null"]
+          description: AppleScript-localized date string, or null.
+        listName: { type: string }
+      required: [name, id, completed, listName]

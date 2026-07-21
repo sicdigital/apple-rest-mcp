@@ -22,4 +22,10 @@ describe("app wiring", () => {
 		const res = await buildApp(cfg).request("/mcp", { method: "POST" });
 		expect(res.status).toBe(401);
 	});
+	it("serves openapi.yaml without auth", async () => {
+		const res = await buildApp(cfg).request("/openapi.yaml");
+		expect(res.status).toBe(200);
+		const body = await res.text();
+		expect(body).toContain("openapi: 3.1.0");
+	});
 });
