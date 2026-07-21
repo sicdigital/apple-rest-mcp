@@ -249,16 +249,38 @@ curl -s -H "Authorization: Bearer $T" "http://127.0.0.1:3737/api/v1/calendar/eve
 
 ### Reminders
 
+Each reminder returns `name`, `id`, `listName`, `completed`, `dueDate`, and
+`creationDate` (dates are AppleScript-localized strings, e.g.
+`"Thursday, July 30, 2026 at 12:00:00 AM"`).
+
 | Param | Meaning |
 |-------|---------|
 | `list` | Reminders list name |
 | `listId` | Reminders list ID |
-| `q` | Search term |
+| `q` | Search term (matches the reminder name; includes completed) |
+| `due[gte\|gt\|lte\|lt]` | Filter by **due date** (Stripe-style bracket operators, ISO 8601 values) |
+| `created[gte\|gt\|lte\|lt]` | Filter by **creation date** (same operators) |
+
+Date filters use Stripe-style bracket operators. `due` and `created` filter
+independently and combine (AND). A reminder with no date on a filtered field is
+excluded (most reminders have no `dueDate`, so prefer `created[...]` for "everything
+in a window"). Invalid date values return `400`.
 
 ```bash
+# plain list / search
 curl -s -H "Authorization: Bearer $T" "http://127.0.0.1:3737/api/v1/reminders?limit=50"
 curl -s -H "Authorization: Bearer $T" "http://127.0.0.1:3737/api/v1/reminders?q=dentist"
+
+# created in June 2026 (bracket keys must be URL-encoded)
+curl -s -H "Authorization: Bearer $T" \
+  "http://127.0.0.1:3737/api/v1/reminders?created%5Bgte%5D=2026-06-01&created%5Blte%5D=2026-06-30"
+
+# due before August 2026
+curl -s -H "Authorization: Bearer $T" \
+  "http://127.0.0.1:3737/api/v1/reminders?due%5Bgte%5D=2026-07-01&due%5Blt%5D=2026-08-01"
 ```
+
+> ⚠️ Reminders queries are slow (~25–35s) — an AppleScript limitation, not the server.
 
 > Tip: `export T=read-abc` once, then reuse `$T` in the examples above.
 

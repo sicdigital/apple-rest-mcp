@@ -208,7 +208,7 @@ Every request needs `Authorization: Bearer <token>`. The token decides the scope
 - `GET /api/v1/notes?folder=&from=&to=&q=&limit=&offset=`
 - `GET /api/v1/mail?account=&unread=&q=&limit=&offset=`, `/api/v1/mail/accounts`, `/api/v1/mail/mailboxes?account=`
 - `GET /api/v1/calendar/events?q=&from=&to=&limit=&offset=`
-- `GET /api/v1/reminders?list=&listId=&q=&limit=&offset=`
+- `GET /api/v1/reminders?list=&listId=&q=&limit=&offset=` (+ date filters `created[gte]=`/`due[lte]=` etc.)
 
 The REST API is **read-only** for all callers; all writes go through MCP.
 
