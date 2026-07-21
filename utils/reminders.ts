@@ -10,6 +10,52 @@ const CONFIG = {
 	TIMEOUT_MS: 8000,
 };
 
+// Control-char delimiters for serializing AppleScript output unambiguously.
+// AppleScript records serialize to an ambiguous comma-joined string, and
+// per-item property access on the Reminders app is pathologically slow, so we
+// fetch each property as a bulk inline specifier joined with these separators
+// (via `AppleScript's text item delimiters`) and zip them by index in JS.
+const FS = String.fromCharCode(31); // field (property value) separator
+const RS = String.fromCharCode(30); // section separator within a list group
+const GS = String.fromCharCode(29); // separator between list groups
+
+/** Escape a string for safe interpolation into an AppleScript string literal. */
+function escapeAppleScript(value: string): string {
+	return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/**
+ * Parse the delimited output of a per-list reminder fetch into Reminder objects.
+ * Each list group is `listName RS names RS ids RS dues [RS completed]`, where each
+ * section is a FS-joined list of equal length (one entry per reminder).
+ */
+function parseReminderGroups(raw: string, hasCompleted: boolean): Reminder[] {
+	const rows: Reminder[] = [];
+	for (const group of raw.split(GS)) {
+		if (!group) continue;
+		const parts = group.split(RS);
+		const listName = parts[0] ?? "";
+		const names = parts[1] ? parts[1].split(FS) : [];
+		const ids = parts[2] ? parts[2].split(FS) : [];
+		const dues = parts[3] ? parts[3].split(FS) : [];
+		const comps = hasCompleted && parts[4] ? parts[4].split(FS) : [];
+		for (let k = 0; k < names.length; k++) {
+			if (!names[k] && !ids[k]) continue; // skip empty/placeholder rows
+			const due = dues[k];
+			rows.push({
+				name: names[k],
+				id: ids[k],
+				body: "",
+				completed: hasCompleted ? comps[k] === "true" : false,
+				dueDate: due && due !== "missing value" ? due : null,
+				listName,
+			});
+			if (rows.length >= CONFIG.MAX_REMINDERS) return rows;
+		}
+	}
+	return rows;
+}
+
 // Define types for our reminders
 interface ReminderList {
 	name: string;
@@ -88,42 +134,30 @@ async function getAllLists(): Promise<ReminderList[]> {
 			throw new Error(accessResult.message);
 		}
 
+		// Fetch names and ids as bulk inline specifiers joined with FS (records
+		// serialize ambiguously), then zip by index.
 		const script = `
 tell application "Reminders"
-    set listArray to {}
-    set listCount to 0
-
-    -- Get all lists
-    set allLists to lists
-
-    repeat with i from 1 to (count of allLists)
-        if listCount >= ${CONFIG.MAX_LISTS} then exit repeat
-
-        try
-            set currentList to item i of allLists
-            set listName to name of currentList
-            set listId to id of currentList
-
-            set listInfo to {name:listName, id:listId}
-            set listArray to listArray & {listInfo}
-            set listCount to listCount + 1
-        on error
-            -- Skip problematic lists
-        end try
-    end repeat
-
-    return listArray
+    set fs to (character id 31)
+    set rs to (character id 30)
+    set AppleScript's text item delimiters to fs
+    set nameStr to (name of lists) as string
+    set idStr to (id of lists) as string
+    set AppleScript's text item delimiters to ""
+    return nameStr & rs & idStr
 end tell`;
 
-		const result = (await runAppleScript(script)) as any;
+		const raw = (await runAppleScript(script)) as string;
+		const [nameStr = "", idStr = ""] = raw.split(RS);
+		const names = nameStr ? nameStr.split(FS) : [];
+		const ids = idStr ? idStr.split(FS) : [];
 
-		// Convert AppleScript result to our format
-		const resultArray = Array.isArray(result) ? result : result ? [result] : [];
-
-		return resultArray.map((listData: any) => ({
-			name: listData.name || "Untitled List",
-			id: listData.id || "unknown-id",
-		}));
+		return names
+			.slice(0, CONFIG.MAX_LISTS)
+			.map((name, i) => ({
+				name: name || "Untitled List",
+				id: ids[i] || "unknown-id",
+			}));
 	} catch (error) {
 		console.error(
 			`Error getting reminder lists: ${error instanceof Error ? error.message : String(error)}`,
@@ -144,30 +178,39 @@ async function getAllReminders(listName?: string): Promise<Reminder[]> {
 			throw new Error(accessResult.message);
 		}
 
+		// Optional filter to a single list by name.
+		const listGuardOpen = listName
+			? `if (name of L) is "${escapeAppleScript(listName)}" then`
+			: "";
+		const listGuardClose = listName ? "end if" : "";
+
+		// Per-list loop, incomplete reminders only, bulk inline property fetches
+		// (name/id/due) joined with FS. Per-item access hangs on the Reminders
+		// app, so we must use inline specifiers, not a repeat over each reminder.
 		const script = `
 tell application "Reminders"
-    try
-        -- Simple check - try to get just the count first to avoid timeouts
-        set listCount to count of lists
-        if listCount > 0 then
-            return "SUCCESS:found_lists_but_reminders_query_too_slow"
-        else
-            return {}
-        end if
-    on error
-        return {}
-    end try
+    set fs to (character id 31)
+    set rs to (character id 30)
+    set gs to (character id 29)
+    set output to ""
+    repeat with L in lists
+        ${listGuardOpen}
+            set ln to name of L
+            set AppleScript's text item delimiters to fs
+            set nameStr to (name of (reminders of L whose completed is false)) as string
+            set idStr to (id of (reminders of L whose completed is false)) as string
+            set dueStr to (due date of (reminders of L whose completed is false)) as string
+            set AppleScript's text item delimiters to ""
+            if nameStr is not "" then
+                set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & gs
+            end if
+        ${listGuardClose}
+    end repeat
+    return output
 end tell`;
 
-		const result = (await runAppleScript(script)) as any;
-
-		// For performance reasons, just return empty array with success message
-		// Complex reminder queries are too slow and unreliable
-		if (result && typeof result === "string" && result.includes("SUCCESS")) {
-			return [];
-		}
-
-		return [];
+		const raw = (await runAppleScript(script)) as string;
+		return parseReminderGroups(raw, false);
 	} catch (error) {
 		console.error(
 			`Error getting reminders: ${error instanceof Error ? error.message : String(error)}`,
@@ -192,22 +235,33 @@ async function searchReminders(searchText: string): Promise<Reminder[]> {
 			return [];
 		}
 
+		// Search by name-contains across all lists, including completed reminders.
+		// The `whose name contains` filter is evaluated in-app and returns few
+		// matches; we fetch name/id/due/completed as bulk inline specifiers.
+		const term = escapeAppleScript(searchText);
 		const script = `
 tell application "Reminders"
-    try
-        -- For performance, just return success without actual search
-        -- Searching reminders is too slow and unreliable in AppleScript
-        return "SUCCESS:reminder_search_not_implemented_for_performance"
-    on error
-        return {}
-    end try
+    set fs to (character id 31)
+    set rs to (character id 30)
+    set gs to (character id 29)
+    set output to ""
+    repeat with L in lists
+        set ln to name of L
+        set AppleScript's text item delimiters to fs
+        set nameStr to (name of (reminders of L whose name contains "${term}")) as string
+        set idStr to (id of (reminders of L whose name contains "${term}")) as string
+        set dueStr to (due date of (reminders of L whose name contains "${term}")) as string
+        set compStr to (completed of (reminders of L whose name contains "${term}")) as string
+        set AppleScript's text item delimiters to ""
+        if nameStr is not "" then
+            set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & rs & compStr & gs
+        end if
+    end repeat
+    return output
 end tell`;
 
-		const result = (await runAppleScript(script)) as any;
-
-		// For performance reasons, just return empty array
-		// Complex reminder search is too slow and unreliable
-		return [];
+		const raw = (await runAppleScript(script)) as string;
+		return parseReminderGroups(raw, true);
 	} catch (error) {
 		console.error(
 			`Error searching reminders: ${error instanceof Error ? error.message : String(error)}`,
@@ -355,22 +409,33 @@ async function getRemindersFromListById(
 			throw new Error(accessResult.message);
 		}
 
+		// Resolve the single list by id, then fetch its incomplete reminders via
+		// bulk inline specifiers (name/id/due).
+		const wantedId = escapeAppleScript(listId);
 		const script = `
 tell application "Reminders"
-    try
-        -- For performance, just return success without actual data
-        -- Getting reminders by ID is complex and slow in AppleScript
-        return "SUCCESS:reminders_by_id_not_implemented_for_performance"
-    on error
-        return {}
-    end try
+    set fs to (character id 31)
+    set rs to (character id 30)
+    set gs to (character id 29)
+    set output to ""
+    repeat with L in lists
+        if (id of L) is "${wantedId}" then
+            set ln to name of L
+            set AppleScript's text item delimiters to fs
+            set nameStr to (name of (reminders of L whose completed is false)) as string
+            set idStr to (id of (reminders of L whose completed is false)) as string
+            set dueStr to (due date of (reminders of L whose completed is false)) as string
+            set AppleScript's text item delimiters to ""
+            if nameStr is not "" then
+                set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & gs
+            end if
+        end if
+    end repeat
+    return output
 end tell`;
 
-		const result = (await runAppleScript(script)) as any;
-
-		// For performance reasons, just return empty array
-		// Complex reminder queries are too slow and unreliable
-		return [];
+		const raw = (await runAppleScript(script)) as string;
+		return parseReminderGroups(raw, false);
 	} catch (error) {
 		console.error(
 			`Error getting reminders from list by ID: ${error instanceof Error ? error.message : String(error)}`,
