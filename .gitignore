@@ -23,6 +23,8 @@ cursor
 seyub
 debug
 mcp
+# ...but the mcp/ source directory (createMcpServer factory) is part of the project
+!/mcp/
 index-safe.ts
 setup-global-command.sh
 update-command.sh
