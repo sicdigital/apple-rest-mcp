@@ -256,8 +256,8 @@ curl -s -H "Authorization: Bearer $T" "http://127.0.0.1:3737/api/v1/calendar/eve
 ### Reminders
 
 Each reminder returns `name`, `id`, `listName`, `completed`, `dueDate`, and
-`creationDate` (dates are AppleScript-localized strings, e.g.
-`"Thursday, July 30, 2026 at 12:00:00 AM"`).
+`creationDate`. All date/time values in responses are ISO 8601
+(e.g. `"2026-07-30T00:00:00.000Z"`); `dueDate`/`creationDate` may be `null`.
 
 | Param | Meaning |
 |-------|---------|

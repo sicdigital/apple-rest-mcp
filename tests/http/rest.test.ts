@@ -92,6 +92,8 @@ describe("reminders route", () => {
 		const june = await app.request("/r?created[gte]=2026-06-01&created[lte]=2026-06-30");
 		const juneData = (await june.json()).data;
 		expect(juneData.map((x: any) => x.name)).toEqual(["June created"]);
+		// dates are normalized to ISO 8601 in the response
+		expect(juneData[0].creationDate).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
 
 		// due before Aug -> only the one with a due date in July
 		const due = await app.request("/r?due[gte]=2026-07-01&due[lt]=2026-08-01");
@@ -184,7 +186,11 @@ describe("mail route", () => {
 		mock.module("../../utils/mail.js", () => ({
 			default: {
 				getLatestMails: async (_account: string) => [
-					{ subject: "Hi", sender: "a@b.c" },
+					{
+						subject: "Hi",
+						sender: "a@b.c",
+						dateSent: "Monday, June 29, 2026 at 1:05:51 AM",
+					},
 				],
 				getUnreadMails: async () => [],
 				searchMails: async () => [],
@@ -195,7 +201,9 @@ describe("mail route", () => {
 		}));
 		const { mailRoutes } = await import("../../http/rest/mail.js");
 		const app = new Hono().route("/m", mailRoutes());
-		expect((await (await app.request("/m")).json()).data[0].subject).toBe("Hi");
+		const mailData = (await (await app.request("/m")).json()).data;
+		expect(mailData[0].subject).toBe("Hi");
+		expect(mailData[0].dateSent).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
 		expect((await (await app.request("/m/accounts")).json()).data).toEqual([
 			"iCloud",
 		]);

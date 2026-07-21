@@ -313,7 +313,7 @@ async function createReminder(
 		if (dueDate) {
 			const d = new Date(dueDate);
 			if (!Number.isNaN(d.getTime())) {
-				dueEcho = dueDate;
+				dueEcho = d.toISOString();
 				dueLines = `
         set dd to (current date)
         set day of dd to 1

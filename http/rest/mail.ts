@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import mail from "../../utils/mail.js";
 import { readPageParams, paginate, envelope } from "./pagination.js";
+import { appleScriptDateToISO } from "./dates.js";
 
 export function mailRoutes(): Hono {
 	const r = new Hono();
@@ -30,7 +31,13 @@ export function mailRoutes(): Hono {
 			rows = await mail.getLatestMails(acct, limit);
 		}
 
-		return c.json(envelope(paginate(rows, limit, offset), limit, offset));
+		// Normalize dateSent (AppleScript-localized string) to ISO 8601.
+		const page = paginate(rows, limit, offset).map((m) => {
+			const msg = m as { dateSent?: string | null };
+			return { ...msg, dateSent: appleScriptDateToISO(msg.dateSent) };
+		});
+
+		return c.json(envelope(page, limit, offset));
 	});
 
 	r.get("/accounts", async (c) => {

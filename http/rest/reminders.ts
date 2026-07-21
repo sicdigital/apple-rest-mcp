@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import reminders from "../../utils/reminders.js";
 import { requireFullScope } from "../auth.js";
 import { readPageParams, paginate, envelope } from "./pagination.js";
+import { parseAppleScriptDate, appleScriptDateToISO } from "./dates.js";
 
 type Op = "gte" | "gt" | "lte" | "lt";
 const OPS: Op[] = ["gte", "gt", "lte", "lt"];
@@ -24,14 +25,6 @@ function readConstraints(url: URL, field: string): Constraint[] {
 		out.push({ op, value });
 	}
 	return out;
-}
-
-/** Parse an AppleScript localized date string ("Thursday, July 30, 2026 at 12:00:00 AM"). */
-function parseAppleScriptDate(s: string | null | undefined): Date | null {
-	if (!s || s === "missing value") return null;
-	const cleaned = s.replace(/^[A-Za-z]+,\s*/, "").replace(/\s+at\s+/, " ");
-	const d = new Date(cleaned);
-	return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function satisfies(value: Date, { op, value: bound }: Constraint): boolean {
@@ -76,7 +69,16 @@ export function remindersRoutes(): Hono {
 			return c.json({ error: (e as Error).message }, 400);
 		}
 
-		let rows: Array<{ dueDate?: string | null; creationDate?: string | null }>;
+		type Row = {
+			name?: string;
+			id?: string;
+			body?: string;
+			completed?: boolean;
+			dueDate?: string | null;
+			creationDate?: string | null;
+			listName?: string;
+		};
+		let rows: Row[];
 		if (q) rows = await reminders.searchReminders(q);
 		else if (listId) rows = await reminders.getRemindersFromListById(listId);
 		else if (list) rows = await reminders.getAllReminders(list);
@@ -88,7 +90,14 @@ export function remindersRoutes(): Hono {
 				matchesField(rem.creationDate, createdConstraints),
 		);
 
-		return c.json(envelope(paginate(filtered, limit, offset), limit, offset));
+		// Normalize AppleScript-localized dates to ISO 8601 in the response.
+		const page = paginate(filtered, limit, offset).map((rem) => ({
+			...rem,
+			dueDate: appleScriptDateToISO(rem.dueDate),
+			creationDate: appleScriptDateToISO(rem.creationDate),
+		}));
+
+		return c.json(envelope(page, limit, offset));
 	});
 
 	// Create a reminder (full token only).

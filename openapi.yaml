@@ -8,9 +8,8 @@ info:
     (sending mail/messages, creating items) go through the MCP endpoint (`POST /mcp`),
     not REST.
 
-    Dates returned by the Reminders and Calendar apps are AppleScript-localized
-    strings (e.g. "Thursday, July 30, 2026 at 12:00:00 AM"), not strict ISO 8601.
-    Filter *inputs*, however, are ISO 8601 / RFC 3339.
+    All date/time values in responses and filter inputs are ISO 8601 / RFC 3339
+    (e.g. "2026-07-30T00:00:00.000Z").
   license:
     name: MIT
     identifier: MIT
@@ -536,7 +535,7 @@ components:
       properties:
         subject: { type: string }
         sender: { type: string }
-        dateSent: { type: string }
+        dateSent: { type: [string, "null"], format: date-time }
         content: { type: string }
         isRead: { type: boolean }
         mailbox: { type: string }
@@ -549,8 +548,8 @@ components:
         title: { type: string }
         location: { type: [string, "null"] }
         notes: { type: [string, "null"] }
-        startDate: { type: [string, "null"] }
-        endDate: { type: [string, "null"] }
+        startDate: { type: [string, "null"], format: date-time }
+        endDate: { type: [string, "null"], format: date-time }
         calendarName: { type: string }
         isAllDay: { type: boolean }
         url: { type: [string, "null"] }
@@ -565,9 +564,11 @@ components:
         completed: { type: boolean }
         dueDate:
           type: [string, "null"]
-          description: AppleScript-localized date string, or null.
+          format: date-time
+          description: ISO 8601 date-time, or null.
         creationDate:
           type: [string, "null"]
-          description: AppleScript-localized date string, or null.
+          format: date-time
+          description: ISO 8601 date-time, or null.
         listName: { type: string }
       required: [name, id, completed, listName]
