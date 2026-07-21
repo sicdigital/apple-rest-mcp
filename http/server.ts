@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { serve } from "@hono/node-server";
 import { readHttpConfig, type HttpConfig } from "./env.js";
 import { bearerAuth } from "./auth.js";
 import { handleMcp } from "./mcp.js";
@@ -52,7 +51,25 @@ export function buildApp(cfg: HttpConfig = readHttpConfig(process.env)): Hono {
 export async function startHttpServer(): Promise<void> {
 	const cfg = readHttpConfig(process.env);
 	const app = buildApp(cfg);
-	serve({ fetch: app.fetch, hostname: cfg.host, port: cfg.port });
+
+	// Prefer Bun's native server when running under Bun — it serves Web-standard
+	// Response/streams directly and avoids @hono/node-server's Node-internals
+	// warning. Fall back to @hono/node-server under plain Node.
+	const bun = (globalThis as { Bun?: { serve: (o: unknown) => unknown } }).Bun;
+	if (bun) {
+		// idleTimeout 255s (Bun's max) so long-lived MCP SSE streams aren't
+		// dropped by the default 10s idle timeout.
+		bun.serve({
+			fetch: app.fetch,
+			hostname: cfg.host,
+			port: cfg.port,
+			idleTimeout: 255,
+		});
+	} else {
+		const { serve } = await import("@hono/node-server");
+		serve({ fetch: app.fetch, hostname: cfg.host, port: cfg.port });
+	}
+
 	console.error(
 		`apple-mcp HTTP server listening on http://${cfg.host}:${cfg.port}`,
 	);
