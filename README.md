@@ -1,177 +1,117 @@
-# 🍎 Apple MCP - Better Siri that can do it all :)
+# 🍎 apple-rest-mcp
 
-> **Plot twist:** Your Mac can do more than just look pretty. Turn your Apple apps into AI superpowers!
+**Your Mac's native apps — Contacts, Notes, Messages, Mail, Reminders, Calendar, Maps —
+exposed to AI over MCP _and_ a network REST API.**
 
-Love this MCP? Check out supermemory MCP too - https://mcp.supermemory.ai
+A fork of [**dhravya/apple-mcp**](https://github.com/dhravya/apple-mcp), rebuilt to run as
+a **networked service** so a self-hosted agent (e.g. Hermes) or a local LLM on another
+machine can drive your Apple apps — with a read-only REST API for bulk/structured data
+and per-token access scopes so agents can read without being able to send on your behalf.
 
+---
 
-Click below for one click install with `.dxt`
+## ✨ What's new in this fork
 
-<a href="https://github.com/supermemoryai/apple-mcp/releases/download/1.0.0/apple-mcp.dxt">
-  <img  width="280" alt="Install with Claude DXT" src="https://github.com/user-attachments/assets/9b0fa2a0-a954-41ee-ac9e-da6e63fc0881" />
-</a>
+Everything the original does (stdio MCP for Claude Desktop) still works. On top of that:
 
-[![smithery badge](https://smithery.ai/badge/@Dhravya/apple-mcp)](https://smithery.ai/server/@Dhravya/apple-mcp)
+- **🌐 MCP over HTTP (Streamable HTTP).** Run it as a LAN service and point any
+  MCP-over-HTTP client (Hermes, local LLM, etc.) at `http://<mac>:3737/mcp` — not just a
+  local stdio subprocess.
+- **🔌 Read-only REST API** (`/api/v1/...`) for bulk reads and structured queries as clean
+  JSON — ideal for ingesting/indexing contacts, notes, mail, calendar, and reminders.
+- **🔑 Token scopes.** Two bearer tokens: a **full** token (can send mail/messages) and a
+  **read-only** token that can read everything but cannot `mail:send` /
+  `messages:send` / `messages:schedule`. Hand agents the read-only one.
+- **🛡️ Fail-closed auth.** In network mode the server refuses to start without a token; every
+  request needs `Authorization: Bearer …`.
+- **♻️ Persistent service.** One-command macOS **LaunchAgent** install (auto-start + restart).
+- **✅ Fixed Reminders.** Upstream could create reminders but **list/search silently returned
+  nothing** (the query functions were stubs). Listing, searching, and by-list lookups now
+  actually work — including for iCloud accounts.
+- **📅 Reminders date filtering.** Filter by **due date** or **creation date** using
+  Stripe-style bracket operators: `created[gte]=…&due[lt]=…`.
 
+See [`docs/USAGE.md`](docs/USAGE.md) for the full guide.
 
-<a href="https://glama.ai/mcp/servers/gq2qg6kxtu">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/gq2qg6kxtu/badge" alt="Apple Server MCP server" />
-</a>
+---
 
-## 🤯 What Can This Thing Do?
+## 🤯 What it can do
 
-**Basically everything you wish your Mac could do automatically (but never bothered to set up):**
+### 💬 Messages
+Send, read, schedule messages, and check unread. *(Sending requires the full token.)*
 
-### 💬 **Messages** - Because who has time to text manually?
+### 📝 Notes
+Create, list, and search notes; pull a folder or a date range.
 
-- Send messages to anyone in your contacts (even that person you've been avoiding)
-- Read your messages (finally catch up on those group chats)
-- Schedule messages for later (be that organized person you pretend to be)
+### 👥 Contacts
+Look up contacts by name or list them all with phone numbers.
 
-### 📝 **Notes** - Your brain's external hard drive
+### 📧 Mail
+Read unread/latest, search, list accounts & mailboxes, and send (full token). CC/BCC supported.
 
-- Create notes faster than you can forget why you needed them
-- Search through that digital mess you call "organized notes"
-- Actually find that brilliant idea you wrote down 3 months ago
+### ⏰ Reminders
+List and search reminders, get a list's reminders by id, create new ones, and **filter by
+due or creation date**. *(List/search were broken upstream — fixed here.)*
 
-### 👥 **Contacts** - Your personal network, digitized
+### 📅 Calendar
+Search, list, create, and open events; filter by date range.
 
-- Find anyone in your contacts without scrolling forever
-- Get phone numbers instantly (no more "hey, what's your number again?")
-- Actually use that contact database you've been building for years
+### 🗺️ Maps
+Search locations, save favorites, get directions, drop pins, and manage guides.
 
-### 📧 **Mail** - Email like a pro (or at least pretend to)
+### 🎭 Chaining still just works
+_"Read my conference notes, find contacts for the people I met, and send them a thank-you
+message"_ runs across notes → contacts → messages in one request.
 
-- Send emails with attachments, CC, BCC - the whole professional shebang
-- Search through your email chaos with surgical precision
-- Schedule emails for later (because 3 AM ideas shouldn't be sent at 3 AM)
-- Check unread counts (prepare for existential dread)
+---
 
-### ⏰ **Reminders** - For humans with human memory
+## 🚀 Getting started
 
-- Create reminders with due dates (finally remember to do things)
-- Search through your reminder graveyard
-- List everything you've been putting off
-- Open specific reminders (face your procrastination)
-
-### 📅 **Calendar** - Time management for the chronically late
-
-- Create events faster than you can double-book yourself
-- Search for that meeting you're definitely forgetting about
-- List upcoming events (spoiler: you're probably late to something)
-- Open calendar events directly (skip the app hunting)
-
-### 🗺️ **Maps** - For people who still get lost with GPS
-
-- Search locations (find that coffee shop with the weird name)
-- Save favorites (bookmark your life's important spots)
-- Get directions (finally stop asking Siri while driving)
-- Create guides (be that friend who plans everything)
-- Drop pins like you're claiming territory
-
-## 🎭 The Magic of Chaining Commands
-
-Here's where it gets spicy. You can literally say:
-
-_"Read my conference notes, find contacts for the people I met, and send them a thank you message"_
-
-And it just... **works**. Like actual magic, but with more code.
-
-## 🚀 Installation (The Easy Way)
-
-### Option 1: Smithery (For the Sophisticated)
+Requires macOS and [Bun](https://bun.sh) (`brew install oven-sh/bun/bun`).
 
 ```bash
-npx -y install-mcp apple-mcp --client claude
+git clone https://github.com/sicdigital/apple-rest-mcp.git
+cd apple-rest-mcp
+bun install
 ```
 
-For Cursor users (we see you):
+There are two ways to run it:
 
-```bash
-npx -y install-mcp apple-mcp --client cursor
-```
+### A) Local stdio (Claude Desktop)
 
-### Option 2: Manual Setup (For the Brave)
-
-<details>
-<summary>Click if you're feeling adventurous</summary>
-
-First, get bun (if you don't have it already):
-
-```bash
-brew install oven-sh/bun/bun
-```
-
-Then add this to your `claude_desktop_config.json`:
+Add to `claude_desktop_config.json` — points Claude Desktop at your local checkout:
 
 ```json
 {
   "mcpServers": {
     "apple-mcp": {
-      "command": "bunx",
-      "args": ["--no-cache", "apple-mcp@latest"]
+      "command": "bun",
+      "args": ["run", "/absolute/path/to/apple-rest-mcp/index.ts"]
     }
   }
 }
 ```
 
-</details>
-
-## 🎬 See It In Action
-
-Here's a step-by-step video walkthrough: https://x.com/DhravyaShah/status/1892694077679763671
-
-(Yes, it's actually as cool as it sounds)
-
-## 🎯 Example Commands That'll Blow Your Mind
-
-```
-"Send a message to mom saying I'll be late for dinner"
-```
-
-```
-"Find all my AI research notes and email them to sarah@company.com"
-```
-
-```
-"Create a reminder to call the dentist tomorrow at 2pm"
-```
-
-```
-"Show me my calendar for next week and create an event for coffee with Alex on Friday"
-```
-
-```
-"Find the nearest pizza place and save it to my favorites"
-```
-
-## 🛠️ Local Development (For the Tinkerers)
+### B) Network mode (agents / other machines) — the point of this fork
 
 ```bash
-git clone https://github.com/dhravya/apple-mcp.git
-cd apple-mcp
-bun install
-bun run index.ts
+MCP_AUTH_TOKEN=full-secret MCP_READONLY_TOKEN=read-secret bun run http
 ```
 
-Now go forth and automate your digital life! 🚀
+Then point your agent at `http://<this-mac>:3737/mcp` with
+`Authorization: Bearer <read-secret>`. Details below.
 
 ---
 
-## 🌐 Network Mode (MCP over HTTP + read-only REST API)
+## 🌐 Network mode (MCP over HTTP + read-only REST API)
 
-By default the server talks **stdio** (for Claude Desktop). It can also run as a
-network service so other machines/agents on your LAN can use it — over **MCP
-Streamable HTTP** and a **read-only REST API**.
-
-> 📖 **Full usage guide with per-endpoint examples, Hermes/MCP client setup, launchd,
-> permissions, and troubleshooting: [`docs/USAGE.md`](docs/USAGE.md).** The summary below
-> is the short version.
+> 📖 Full guide — per-endpoint examples, MCP client setup, launchd, permissions, and
+> troubleshooting — in [`docs/USAGE.md`](docs/USAGE.md). This is the short version.
 
 ### Run it
 
 ```bash
-# dev
+# inline tokens
 MCP_AUTH_TOKEN=full-secret MCP_READONLY_TOKEN=read-secret bun run http
 
 # or with an env file (see .env.example)
@@ -181,11 +121,11 @@ MCP_AUTH_TOKEN=full-secret MCP_READONLY_TOKEN=read-secret bun run http
 
 | Var | Default | Purpose |
 |-----|---------|---------|
-| `MCP_TRANSPORT` | `stdio` | Set to `http` for network mode |
+| `MCP_TRANSPORT` | `stdio` | Set to `http` for network mode (`bun run http` does this) |
 | `HOST` | `0.0.0.0` | Bind address (http mode) |
 | `PORT` | `3737` | Listen port |
 | `MCP_AUTH_TOKEN` | — | **Full-access** bearer token (all operations, incl. sending) |
-| `MCP_READONLY_TOKEN` | — | **Read-only** bearer token — give this one to Hermes |
+| `MCP_READONLY_TOKEN` | — | **Read-only** bearer token — give this one to your agent |
 
 In http mode at least one token must be set or the server refuses to start
 (fail-closed). Tokens must be distinct.
@@ -201,14 +141,15 @@ Every request needs `Authorization: Bearer <token>`. The token decides the scope
 
 ### Endpoints
 
-- `POST /mcp` — MCP Streamable HTTP. Point Hermes here:
+- `POST /mcp` — MCP Streamable HTTP. Point your agent here:
   `http://<host>:3737/mcp` with `Authorization: Bearer <MCP_READONLY_TOKEN>`.
 - `GET /healthz` — liveness, no auth.
 - `GET /api/v1/contacts?name=&limit=&offset=`
 - `GET /api/v1/notes?folder=&from=&to=&q=&limit=&offset=`
 - `GET /api/v1/mail?account=&unread=&q=&limit=&offset=`, `/api/v1/mail/accounts`, `/api/v1/mail/mailboxes?account=`
 - `GET /api/v1/calendar/events?q=&from=&to=&limit=&offset=`
-- `GET /api/v1/reminders?list=&listId=&q=&limit=&offset=` (+ date filters `created[gte]=`/`due[lte]=` etc.)
+- `GET /api/v1/reminders?list=&listId=&q=&limit=&offset=` — plus Stripe-style date filters
+  `created[gte|gt|lte|lt]=<iso>` and `due[gte|gt|lte|lt]=<iso>`
 
 The REST API is **read-only** for all callers; all writes go through MCP.
 
@@ -225,6 +166,24 @@ this reason. The first launch triggers macOS **Automation** permission prompts f
 Contacts, Messages, Mail, Reminders, and Calendar — approve them once while logged
 in, or tools will silently return empty/errors.
 
+> ⚠️ **Note:** Reminders queries are slow (~25–35s) — an AppleScript limitation, not the server.
+
 ---
 
-_Made with ❤️ by supermemory (and honestly, claude code)_
+## 🎯 Example prompts
+
+```
+"Send a message to mom saying I'll be late for dinner"
+"Find all my AI research notes and email them to sarah@company.com"
+"Create a reminder to call the dentist tomorrow at 2pm"
+"Show me my calendar for next week and add coffee with Alex on Friday"
+"Find the nearest pizza place and save it to my favorites"
+```
+
+---
+
+## 🙏 Credits
+
+Originally created by [Dhravya Shah](https://dhravya.dev) / [supermemory](https://supermemory.ai)
+as [apple-mcp](https://github.com/dhravya/apple-mcp). This fork adds network HTTP + REST,
+token scopes, persistent deployment, and the Reminders fixes described above.
