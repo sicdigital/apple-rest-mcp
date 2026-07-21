@@ -158,4 +158,69 @@ Now go forth and automate your digital life! 🚀
 
 ---
 
+## 🌐 Network Mode (MCP over HTTP + read-only REST API)
+
+By default the server talks **stdio** (for Claude Desktop). It can also run as a
+network service so other machines/agents on your LAN can use it — over **MCP
+Streamable HTTP** and a **read-only REST API**.
+
+### Run it
+
+```bash
+# dev
+MCP_AUTH_TOKEN=full-secret MCP_READONLY_TOKEN=read-secret bun run http
+
+# or with an env file (see .env.example)
+```
+
+### Configuration (env vars)
+
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `MCP_TRANSPORT` | `stdio` | Set to `http` for network mode |
+| `HOST` | `0.0.0.0` | Bind address (http mode) |
+| `PORT` | `3737` | Listen port |
+| `MCP_AUTH_TOKEN` | — | **Full-access** bearer token (all operations, incl. sending) |
+| `MCP_READONLY_TOKEN` | — | **Read-only** bearer token — give this one to Hermes |
+
+In http mode at least one token must be set or the server refuses to start
+(fail-closed). Tokens must be distinct.
+
+### Authorization scopes
+
+Every request needs `Authorization: Bearer <token>`. The token decides the scope:
+
+- **Full token** → all tools/operations.
+- **Read-only token** → everything **except** `mail:send`, `messages:send`, and
+  `messages:schedule`. It can still read mail/messages and create
+  notes/reminders/calendar events. Blocked calls return a tool error, not a crash.
+
+### Endpoints
+
+- `POST /mcp` — MCP Streamable HTTP. Point Hermes here:
+  `http://<host>:3737/mcp` with `Authorization: Bearer <MCP_READONLY_TOKEN>`.
+- `GET /healthz` — liveness, no auth.
+- `GET /api/v1/contacts?name=&limit=&offset=`
+- `GET /api/v1/notes?folder=&from=&to=&q=&limit=&offset=`
+- `GET /api/v1/mail?account=&unread=&q=&limit=&offset=`, `/api/v1/mail/accounts`, `/api/v1/mail/mailboxes?account=`
+- `GET /api/v1/calendar/events?q=&from=&to=&limit=&offset=`
+- `GET /api/v1/reminders?list=&listId=&q=&limit=&offset=`
+
+The REST API is **read-only** for all callers; all writes go through MCP.
+
+### Keep it running (macOS LaunchAgent)
+
+```bash
+MCP_AUTH_TOKEN=full-secret MCP_READONLY_TOKEN=read-secret PORT=3737 \
+  ./deploy/install-launchagent.sh
+```
+
+⚠️ **Permissions:** the server drives Apple apps via AppleScript, which needs the
+logged-in GUI session. It's installed as a **LaunchAgent** (not a LaunchDaemon) for
+this reason. The first launch triggers macOS **Automation** permission prompts for
+Contacts, Messages, Mail, Reminders, and Calendar — approve them once while logged
+in, or tools will silently return empty/errors.
+
+---
+
 _Made with ❤️ by supermemory (and honestly, claude code)_
