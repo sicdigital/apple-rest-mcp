@@ -2,7 +2,7 @@
 	"dxt_version": "0.1",
 	"name": "apple-rest-mcp",
 	"display_name": "Apple REST MCP",
-	"version": "1.0.0",
+	"version": "2.0.0",
 	"description": "Apple apps for contacts, notes, messages, mail, reminders, calendar, and maps — over MCP and a networked read-only REST API.",
 	"long_description": "apple-rest-mcp gives LLMs and self-hosted agents access to Apple's native apps (Contacts, Notes, Messages, Mail, Reminders, Calendar, Maps). A fork of Dhravya Shah's apple-mcp, it adds a network mode: MCP over Streamable HTTP plus a read-only REST API (/api/v1) for bulk and structured reads, with per-token access scopes (a read-only token that cannot send mail/messages) and a macOS LaunchAgent for persistent deployment. This manifest packages the stdio MCP server for Claude Desktop; see the repository for network mode.",
 	"author": {
