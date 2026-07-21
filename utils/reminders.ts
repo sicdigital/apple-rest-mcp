@@ -303,25 +303,53 @@ async function createReminder(
 			throw new Error("Reminder name cannot be empty");
 		}
 
-		const cleanName = name.replace(/\"/g, '\\"');
-		const cleanListName = listName.replace(/\"/g, '\\"');
-		const cleanNotes = notes ? notes.replace(/\"/g, '\\"') : "";
+		const cleanName = escapeAppleScript(name);
+		const cleanListName = escapeAppleScript(listName);
+		const cleanNotes = notes ? escapeAppleScript(notes) : "";
+
+		// Set the due date from ISO components (AppleScript can't parse ISO strings).
+		let dueLines = "";
+		let dueEcho: string | null = null;
+		if (dueDate) {
+			const d = new Date(dueDate);
+			if (!Number.isNaN(d.getTime())) {
+				dueEcho = dueDate;
+				dueLines = `
+        set dd to (current date)
+        set day of dd to 1
+        set year of dd to ${d.getFullYear()}
+        set month of dd to ${d.getMonth() + 1}
+        set day of dd to ${d.getDate()}
+        set hours of dd to ${d.getHours()}
+        set minutes of dd to ${d.getMinutes()}
+        set seconds of dd to ${d.getSeconds()}
+        set due date of newReminder to dd`;
+			}
+		}
+
+		const props = cleanNotes
+			? `{name:"${cleanName}", body:"${cleanNotes}"}`
+			: `{name:"${cleanName}"}`;
 
 		const script = `
 tell application "Reminders"
+    set fs to (character id 31)
     try
-        -- Use first available list (creating/finding lists can be slow)
-        set allLists to lists
-        if (count of allLists) > 0 then
-            set targetList to first item of allLists
-            set listName to name of targetList
-
-            -- Create a simple reminder with just name
-            set newReminder to make new reminder at targetList with properties {name:"${cleanName}"}
-            return "SUCCESS:" & listName
-        else
-            return "ERROR:No lists available"
+        -- Find the requested list by name; fall back to the first list.
+        set targetList to missing value
+        repeat with L in lists
+            if (name of L) is "${cleanListName}" then
+                set targetList to L
+                exit repeat
+            end if
+        end repeat
+        if targetList is missing value then
+            if (count of lists) is 0 then return "ERROR:No lists available"
+            set targetList to first item of lists
         end if
+
+        set newReminder to make new reminder at targetList with properties ${props}${dueLines}
+        return "SUCCESS" & fs & (id of newReminder) & fs & (name of targetList)
     on error errorMessage
         return "ERROR:" & errorMessage
     end try
@@ -329,16 +357,16 @@ end tell`;
 
 		const result = (await runAppleScript(script)) as string;
 
-		if (result && result.startsWith("SUCCESS:")) {
-			const actualListName = result.replace("SUCCESS:", "");
-
+		if (result && result.startsWith("SUCCESS")) {
+			const parts = result.split(FS);
 			return {
-				name: name,
-				id: "created-reminder-id",
-				body: notes || "",
+				name,
+				id: parts[1] ?? "",
+				body: notes ?? "",
 				completed: false,
-				dueDate: dueDate || null,
-				listName: actualListName,
+				dueDate: dueEcho,
+				creationDate: null,
+				listName: parts[2] ?? listName,
 			};
 		} else {
 			throw new Error(`Failed to create reminder: ${result}`);
