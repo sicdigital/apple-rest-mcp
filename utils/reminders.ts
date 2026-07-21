@@ -24,10 +24,15 @@ function escapeAppleScript(value: string): string {
 	return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
+/** Normalize an AppleScript-serialized date value ("missing value" / "" -> null). */
+function normalizeDate(value: string | undefined): string | null {
+	return value && value !== "missing value" ? value : null;
+}
+
 /**
  * Parse the delimited output of a per-list reminder fetch into Reminder objects.
- * Each list group is `listName RS names RS ids RS dues [RS completed]`, where each
- * section is a FS-joined list of equal length (one entry per reminder).
+ * Each list group is `listName RS names RS ids RS dues RS createds [RS completed]`,
+ * where each section is a FS-joined list of equal length (one entry per reminder).
  */
 function parseReminderGroups(raw: string, hasCompleted: boolean): Reminder[] {
 	const rows: Reminder[] = [];
@@ -38,16 +43,17 @@ function parseReminderGroups(raw: string, hasCompleted: boolean): Reminder[] {
 		const names = parts[1] ? parts[1].split(FS) : [];
 		const ids = parts[2] ? parts[2].split(FS) : [];
 		const dues = parts[3] ? parts[3].split(FS) : [];
-		const comps = hasCompleted && parts[4] ? parts[4].split(FS) : [];
+		const createds = parts[4] ? parts[4].split(FS) : [];
+		const comps = hasCompleted && parts[5] ? parts[5].split(FS) : [];
 		for (let k = 0; k < names.length; k++) {
 			if (!names[k] && !ids[k]) continue; // skip empty/placeholder rows
-			const due = dues[k];
 			rows.push({
 				name: names[k],
 				id: ids[k],
 				body: "",
 				completed: hasCompleted ? comps[k] === "true" : false,
-				dueDate: due && due !== "missing value" ? due : null,
+				dueDate: normalizeDate(dues[k]),
+				creationDate: normalizeDate(createds[k]),
 				listName,
 			});
 			if (rows.length >= CONFIG.MAX_REMINDERS) return rows;
@@ -200,9 +206,10 @@ tell application "Reminders"
             set nameStr to (name of (reminders of L whose completed is false)) as string
             set idStr to (id of (reminders of L whose completed is false)) as string
             set dueStr to (due date of (reminders of L whose completed is false)) as string
+            set createStr to (creation date of (reminders of L whose completed is false)) as string
             set AppleScript's text item delimiters to ""
             if nameStr is not "" then
-                set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & gs
+                set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & rs & createStr & gs
             end if
         ${listGuardClose}
     end repeat
@@ -251,10 +258,11 @@ tell application "Reminders"
         set nameStr to (name of (reminders of L whose name contains "${term}")) as string
         set idStr to (id of (reminders of L whose name contains "${term}")) as string
         set dueStr to (due date of (reminders of L whose name contains "${term}")) as string
+        set createStr to (creation date of (reminders of L whose name contains "${term}")) as string
         set compStr to (completed of (reminders of L whose name contains "${term}")) as string
         set AppleScript's text item delimiters to ""
         if nameStr is not "" then
-            set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & rs & compStr & gs
+            set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & rs & createStr & rs & compStr & gs
         end if
     end repeat
     return output
@@ -425,9 +433,10 @@ tell application "Reminders"
             set nameStr to (name of (reminders of L whose completed is false)) as string
             set idStr to (id of (reminders of L whose completed is false)) as string
             set dueStr to (due date of (reminders of L whose completed is false)) as string
+            set createStr to (creation date of (reminders of L whose completed is false)) as string
             set AppleScript's text item delimiters to ""
             if nameStr is not "" then
-                set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & gs
+                set output to output & ln & rs & nameStr & rs & idStr & rs & dueStr & rs & createStr & gs
             end if
         end if
     end repeat

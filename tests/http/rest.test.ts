@@ -72,6 +72,36 @@ describe("reminders route", () => {
 		const res = await app.request("/r");
 		expect((await res.json()).pagination.count).toBe(1);
 	});
+
+	it("filters by created/due date ranges (Stripe-style brackets)", async () => {
+		mock.module("../../utils/reminders.js", () => ({
+			default: {
+				getAllReminders: async () => [
+					{ name: "June created", creationDate: "Monday, June 29, 2026 at 1:05:51 AM", dueDate: null },
+					{ name: "July created", creationDate: "Wednesday, July 15, 2026 at 9:00:00 AM", dueDate: null },
+					{ name: "Due July", creationDate: "Friday, May 1, 2026 at 8:00:00 AM", dueDate: "Thursday, July 30, 2026 at 12:00:00 AM" },
+				],
+				getRemindersFromListById: async () => [],
+				searchReminders: async () => [],
+			},
+		}));
+		const { remindersRoutes } = await import("../../http/rest/reminders.js");
+		const app = new Hono().route("/r", remindersRoutes());
+
+		// created in June only
+		const june = await app.request("/r?created[gte]=2026-06-01&created[lte]=2026-06-30");
+		const juneData = (await june.json()).data;
+		expect(juneData.map((x: any) => x.name)).toEqual(["June created"]);
+
+		// due before Aug -> only the one with a due date in July
+		const due = await app.request("/r?due[gte]=2026-07-01&due[lt]=2026-08-01");
+		const dueData = (await due.json()).data;
+		expect(dueData.map((x: any) => x.name)).toEqual(["Due July"]);
+
+		// bad date -> 400
+		const bad = await app.request("/r?created[gte]=notadate");
+		expect(bad.status).toBe(400);
+	});
 });
 
 describe("calendar route", () => {
