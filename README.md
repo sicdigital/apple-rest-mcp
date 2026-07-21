@@ -164,6 +164,10 @@ By default the server talks **stdio** (for Claude Desktop). It can also run as a
 network service so other machines/agents on your LAN can use it — over **MCP
 Streamable HTTP** and a **read-only REST API**.
 
+> 📖 **Full usage guide with per-endpoint examples, Hermes/MCP client setup, launchd,
+> permissions, and troubleshooting: [`docs/USAGE.md`](docs/USAGE.md).** The summary below
+> is the short version.
+
 ### Run it
 
 ```bash
