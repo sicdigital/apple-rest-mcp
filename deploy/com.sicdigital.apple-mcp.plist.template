@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.sicdigital.apple-mcp</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__BUN__</string>
+		<string>run</string>
+		<string>__REPO__/index.ts</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>MCP_TRANSPORT</key><string>http</string>
+		<key>HOST</key><string>0.0.0.0</string>
+		<key>PORT</key><string>__PORT__</string>
+		<key>MCP_AUTH_TOKEN</key><string>__FULL_TOKEN__</string>
+		<key>MCP_READONLY_TOKEN</key><string>__READONLY_TOKEN__</string>
+	</dict>
+	<key>RunAtLoad</key><true/>
+	<key>KeepAlive</key><true/>
+	<key>StandardOutPath</key><string>__HOME__/Library/Logs/apple-mcp.out.log</string>
+	<key>StandardErrorPath</key><string>__HOME__/Library/Logs/apple-mcp.err.log</string>
+	<key>WorkingDirectory</key><string>__REPO__</string>
+</dict>
+</plist>
