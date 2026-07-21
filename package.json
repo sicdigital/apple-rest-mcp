@@ -1,26 +1,36 @@
 {
-	"name": "apple-mcp",
+	"name": "apple-rest-mcp",
 	"version": "1.0.0",
 	"module": "index.ts",
 	"type": "module",
-	"description": "Apple MCP tools for contacts, notes, messages, and mail integration",
-	"author": "Dhravya Shah",
+	"description": "Apple apps (Contacts, Notes, Messages, Mail, Reminders, Calendar, Maps) over MCP and a networked read-only REST API, with token scopes for agents.",
+	"author": "Mike Chacon <mike@sicdigital.com>",
+	"contributors": [
+		"Dhravya Shah (original apple-mcp)"
+	],
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/dhravya/apple-mcp.git"
+		"url": "git+https://github.com/sicdigital/apple-rest-mcp.git"
 	},
 	"keywords": [
 		"mcp",
 		"apple",
+		"rest",
+		"http",
+		"streamable-http",
+		"agent",
+		"hermes",
 		"contacts",
 		"notes",
 		"messages",
 		"mail",
+		"reminders",
+		"calendar",
 		"claude"
 	],
 	"bin": {
-		"apple-mcp": "./dist/index.js"
+		"apple-rest-mcp": "./dist/index.js"
 	},
 	"scripts": {
 		"dev": "bun run index.ts",

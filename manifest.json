@@ -1,28 +1,29 @@
 {
 	"dxt_version": "0.1",
-	"name": "apple-mcp",
-	"display_name": "Apple MCP",
+	"name": "apple-rest-mcp",
+	"display_name": "Apple REST MCP",
 	"version": "1.0.0",
-	"description": "Apple MCP tools for contacts, notes, messages, mail, reminders, calendar, and maps integration",
-	"long_description": "Apple MCP gives LLMs access to Apple's native apps including Contacts, Notes, Messages, Mail, Reminders, Calendar, and Maps. This integration allows LLMs to interact with these apps seamlessly, enabling comprehensive automation of daily tasks like managing contacts, creating notes, sending messages, handling emails, setting reminders, managing calendar events, and navigating with Maps.",
+	"description": "Apple apps for contacts, notes, messages, mail, reminders, calendar, and maps — over MCP and a networked read-only REST API.",
+	"long_description": "apple-rest-mcp gives LLMs and self-hosted agents access to Apple's native apps (Contacts, Notes, Messages, Mail, Reminders, Calendar, Maps). A fork of Dhravya Shah's apple-mcp, it adds a network mode: MCP over Streamable HTTP plus a read-only REST API (/api/v1) for bulk and structured reads, with per-token access scopes (a read-only token that cannot send mail/messages) and a macOS LaunchAgent for persistent deployment. This manifest packages the stdio MCP server for Claude Desktop; see the repository for network mode.",
 	"author": {
-		"name": "Dhravya Shah",
-		"email": "dhravya@supermemory.com",
-		"url": "https://dhravya.dev"
+		"name": "Mike Chacon",
+		"email": "mike@sicdigital.com",
+		"url": "https://github.com/sicdigital"
 	},
-	"homepage": "https://supermemory.ai",
+	"homepage": "https://github.com/sicdigital/apple-rest-mcp",
 	"keywords": [
 		"apple",
+		"mcp",
+		"rest",
+		"http",
+		"agent",
 		"automation",
-		"productivity",
 		"mail",
-		"email",
 		"calendar",
 		"notes",
 		"reminders",
 		"maps"
 	],
-	"icon": "https://supermemory.ai/_astro/gradient-icon.DNStxMeh.svg",
 	"server": {
 		"type": "node",
 		"entry_point": "dist/index.js",
@@ -51,7 +52,7 @@
 		},
 		{
 			"name": "reminders",
-			"description": "Search, create, and open reminders in Apple Reminders app"
+			"description": "List, search, create, and open reminders in Apple Reminders app"
 		},
 		{
 			"name": "calendar",
@@ -69,6 +70,6 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/dhravya/apple-mcp.git"
+		"url": "git+https://github.com/sicdigital/apple-rest-mcp.git"
 	}
 }
